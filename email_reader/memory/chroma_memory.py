@@ -19,7 +19,17 @@ class ChromaMemoryManager:
             collection_name: Name of the ChromaDB collection
         """
         # Connect to ChromaDB server running in Docker
-        self.client = chromadb.HttpClient(host="chroma", port=8000)
+        try:
+            # Try the new client configuration first
+            self.client = chromadb.HttpClient(
+                host="chroma", 
+                port=8000,
+                settings=Settings(allow_reset=True)
+            )
+        except Exception:
+            # Fallback to basic configuration
+            self.client = chromadb.HttpClient(host="chroma", port=8000)
+        
         self.collection = self.client.get_or_create_collection(name=collection_name)
         
         # Initialize embeddings

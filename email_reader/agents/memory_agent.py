@@ -60,6 +60,8 @@ Consider what you've learned from past experiences and how it applies to the cur
         
         # Format memories for the prompt
         memories_text = self._format_memories(relevant_memories)
+
+        print(f"Memories text: {memories_text}")
         
         # Run the agent with memory context
         response = self.chain.run({

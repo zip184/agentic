@@ -10,7 +10,7 @@ services:
     depends_on:
       - chroma
   chroma:
-    image: chromadb/chroma
+    image: chromadb/chroma:0.4.24
     ports:
       - "8001:8000"
     volumes:
