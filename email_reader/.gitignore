@@ -107,3 +107,8 @@ models/
 *.temp
 .tmp/
 .temp/
+
+# Gmail API credentials
+credentials.json
+token.pickle
+client_secret_*.json
