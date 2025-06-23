@@ -6,6 +6,7 @@ from agents.agent import run_agent
 from agents.memory_agent import MemoryAwareAgent
 from memory import MemoryType, ChromaMemoryManager
 from services.gmail_service import GmailService
+from services.nintendo_monitor import NintendoSwitch2Monitor, AlertConfig
 
 app = FastAPI(title="Autonomous Agent API with Memory", version="1.0.0")
 
@@ -19,6 +20,15 @@ try:
 except Exception as e:
     gmail_service = None
     print(f"Gmail service not available: {e}")
+
+# Initialize Nintendo Switch 2 Monitor
+nintendo_monitor = None
+if gmail_service:
+    try:
+        nintendo_monitor = NintendoSwitch2Monitor(gmail_service, memory_agent.memory_manager)
+        print("Nintendo Switch 2 monitor initialized successfully")
+    except Exception as e:
+        print(f"Nintendo monitor initialization failed: {e}")
 
 class AgentRequest(BaseModel):
     goal: str
@@ -50,6 +60,15 @@ class EmailProcessingRequest(BaseModel):
     max_emails: Optional[int] = 5
     store_in_memory: Optional[bool] = True
     analyze_with_agent: Optional[bool] = True
+
+class AlertConfigRequest(BaseModel):
+    method: str  # 'console', 'webhook', 'email', 'file'
+    target: str  # URL for webhook, email address, file path, etc.
+    enabled: Optional[bool] = True
+
+class MonitorConfigRequest(BaseModel):
+    check_interval_minutes: Optional[int] = 15
+    alert_configs: List[AlertConfigRequest] = []
 
 @app.get("/")
 def root():
@@ -346,6 +365,87 @@ def process_emails_with_agent(request: EmailProcessingRequest):
             "results": results
         }
         
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Nintendo Switch 2 Monitoring Endpoints
+@app.get("/nintendo/monitor/status")
+def get_nintendo_monitor_status():
+    """Get Nintendo Switch 2 monitor status"""
+    if nintendo_monitor is None:
+        return {"status": "unavailable", "message": "Nintendo monitor not initialized"}
+    
+    try:
+        stats = nintendo_monitor.get_monitoring_stats()
+        return {"status": "available", "stats": stats}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/nintendo/monitor/configure")
+def configure_nintendo_monitor(request: MonitorConfigRequest):
+    """Configure Nintendo Switch 2 monitor alerts"""
+    if nintendo_monitor is None:
+        raise HTTPException(status_code=503, detail="Nintendo monitor not available")
+    
+    try:
+        # Clear existing alert configs
+        nintendo_monitor.alert_configs.clear()
+        
+        # Add new alert configs
+        for alert_config in request.alert_configs:
+            config = AlertConfig(
+                method=alert_config.method,
+                target=alert_config.target,
+                enabled=alert_config.enabled
+            )
+            nintendo_monitor.add_alert_config(config)
+        
+        return {
+            "message": "Nintendo monitor configured successfully",
+            "alert_configs": len(request.alert_configs),
+            "check_interval": request.check_interval_minutes
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/nintendo/monitor/start")
+def start_nintendo_monitor(check_interval_minutes: int = 15):
+    """Start Nintendo Switch 2 monitoring (this would typically run in background)"""
+    if nintendo_monitor is None:
+        raise HTTPException(status_code=503, detail="Nintendo monitor not available")
+    
+    # Note: In a real implementation, this would start a background task
+    # For demo purposes, we'll just run one check
+    try:
+        import asyncio
+        
+        async def run_check():
+            await nintendo_monitor._check_for_switch2_emails()
+        
+        asyncio.run(run_check())
+        
+        return {
+            "message": "Nintendo monitor check completed",
+            "note": "In production, this would start continuous monitoring"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/nintendo/monitor/test")
+def test_nintendo_monitor():
+    """Test Nintendo Switch 2 monitor with current emails"""
+    if nintendo_monitor is None:
+        raise HTTPException(status_code=503, detail="Nintendo monitor not available")
+    
+    try:
+        import asyncio
+        
+        async def run_test():
+            await nintendo_monitor._check_for_switch2_emails()
+        
+        asyncio.run(run_test())
+        
+        return {"message": "Nintendo monitor test completed successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
