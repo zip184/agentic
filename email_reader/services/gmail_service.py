@@ -273,6 +273,59 @@ class GmailService:
         """
         return self.get_messages(query=search_terms, max_results=max_results)
 
+    def send_sms_notification(self, phone_number: str, carrier: str, message: str) -> bool:
+        """
+        Send SMS notification using Gmail API and SMS gateways
+        
+        Args:
+            phone_number: Phone number (digits only)
+            carrier: Carrier name (att, verizon, tmobile, etc.)
+            message: SMS message content
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        # SMS gateways mapping
+        sms_gateways = {
+            'att': '@txt.att.net',
+            'verizon': '@vtext.com',
+            'tmobile': '@tmomail.net',
+            'sprint': '@messaging.sprintpcs.com',
+            'boost': '@smsmyboostmobile.com',
+            'cricket': '@sms.cricketwireless.net',
+            'uscellular': '@email.uscc.net',
+            'metropcs': '@mymetropcs.com'
+        }
+        
+        if carrier.lower() not in sms_gateways:
+            print(f"Unsupported carrier: {carrier}")
+            return False
+            
+        to_email = f"{phone_number}{sms_gateways[carrier.lower()]}"
+        
+        try:
+            # Create message
+            msg = MIMEText(message)
+            msg['Subject'] = ""  # SMS messages don't need subjects
+            msg['From'] = "me"
+            msg['To'] = to_email
+            
+            # Encode message
+            raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
+            
+            # Send via Gmail API
+            send_result = self.service.users().messages().send(
+                userId='me',
+                body={'raw': raw_message}
+            ).execute()
+            
+            print(f"SMS sent successfully to {to_email}")
+            return True
+            
+        except Exception as e:
+            print(f"Error sending SMS: {e}")
+            return False
+
 
 def authenticate_gmail(credentials_file: str = 'credentials.json', token_file: str = 'token.pickle'):
     """
