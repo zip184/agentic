@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -7,6 +8,7 @@ from agents.memory_agent import MemoryAwareAgent
 from memory import MemoryType, ChromaMemoryManager
 from services.gmail_service import GmailService
 from services.nintendo_monitor import NintendoSwitch2Monitor, AlertConfig
+from services.notification_service import NotificationService, NotificationType, send_quick_notification
 
 app = FastAPI(title="Autonomous Agent API with Memory", version="1.0.0")
 
@@ -29,6 +31,14 @@ if gmail_service:
         print("Nintendo Switch 2 monitor initialized successfully")
     except Exception as e:
         print(f"Nintendo monitor initialization failed: {e}")
+
+# Initialize Notification Service
+try:
+    notification_service = NotificationService(gmail_service=gmail_service)
+    print("Notification service initialized successfully")
+except Exception as e:
+    notification_service = None
+    print(f"Notification service initialization failed: {e}")
 
 class AgentRequest(BaseModel):
     goal: str
@@ -69,6 +79,13 @@ class AlertConfigRequest(BaseModel):
 class MonitorConfigRequest(BaseModel):
     check_interval_minutes: Optional[int] = 15
     alert_configs: List[AlertConfigRequest] = []
+
+class NotificationRequest(BaseModel):
+    message: str
+    title: Optional[str] = "Notification"
+    methods: Optional[List[str]] = None  # List of notification method names
+
+
 
 @app.get("/")
 def root():
@@ -446,6 +463,138 @@ def test_nintendo_monitor():
         asyncio.run(run_test())
         
         return {"message": "Nintendo monitor test completed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Notification Endpoints
+@app.get("/notifications/status")
+def get_notification_status():
+    """Get notification service status and available methods"""
+    if notification_service is None:
+        return {"status": "unavailable", "message": "Notification service not initialized"}
+    
+    try:
+        available_methods = notification_service._get_available_methods()
+        return {
+            "status": "available",
+            "available_methods": [method.value for method in available_methods],
+            "supported_carriers": list(notification_service.SMS_GATEWAYS.keys())
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/notifications/send")
+def send_notification(request: NotificationRequest):
+    """Send a notification via configured methods"""
+    if notification_service is None:
+        raise HTTPException(status_code=503, detail="Notification service not available")
+    
+    try:
+        # Convert string method names to NotificationType enums
+        methods = None
+        if request.methods:
+            methods = []
+            for method_name in request.methods:
+                try:
+                    method_enum = NotificationType(method_name)
+                    methods.append(method_enum)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"Invalid notification method: {method_name}")
+        
+        results = notification_service.send_notification(
+            message=request.message,
+            title=request.title,
+            methods=methods
+        )
+        
+        return {
+            "message": "Notification sent",
+            "results": results,
+            "success_count": sum(1 for success in results.values() if success),
+            "total_methods": len(results)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/notifications/test")
+def test_notifications():
+    """Test all configured notification methods"""
+    if notification_service is None:
+        raise HTTPException(status_code=503, detail="Notification service not available")
+    
+    try:
+        results = notification_service.test_notifications()
+        return {
+            "message": "Notification test completed",
+            "results": results,
+            "success_count": sum(1 for success in results.values() if success),
+            "total_methods": len(results)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.post("/notifications/sms-gmail")
+def send_sms_via_gmail(phone_number: str, carrier: str, message: str):
+    """Send SMS via Gmail API using existing authentication (no passwords needed!)"""
+    if gmail_service is None:
+        raise HTTPException(status_code=503, detail="Gmail service not available")
+    
+    try:
+        success = gmail_service.send_sms_notification(
+            phone_number=phone_number,
+            carrier=carrier,
+            message=message
+        )
+        
+        # Get the SMS gateway address for display
+        sms_gateways = {
+            'att': '@txt.att.net',
+            'verizon': '@vtext.com',
+            'tmobile': '@tmomail.net',
+            'sprint': '@messaging.sprintpcs.com',
+            'boost': '@smsmyboostmobile.com',
+            'cricket': '@sms.cricketwireless.net',
+            'uscellular': '@email.uscc.net',
+            'metropcs': '@mymetropcs.com'
+        }
+        
+        return {
+            "message": "SMS sent successfully via Gmail!" if success else "Failed to send SMS via Gmail",
+            "success": success,
+            "sms_address": f"{phone_number}{sms_gateways.get(carrier.lower(), '@unknown')}",
+            "method": "Gmail API (no passwords needed)"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/notifications/carriers")
+def get_supported_carriers():
+    """Get list of supported SMS carriers"""
+    if notification_service is None:
+        raise HTTPException(status_code=503, detail="Notification service not available")
+    
+    return {
+        "carriers": notification_service.SMS_GATEWAYS,
+        "example_usage": {
+            "phone_number": "1234567890",
+            "carrier": "att",
+            "sms_address": "1234567890@txt.att.net"
+        }
+    }
+
+@app.post("/notifications/quick")
+def send_quick_notification_endpoint(message: str, title: str = "Alert"):
+    """Quick notification using environment variables"""
+    try:
+        result = send_quick_notification(message, title)
+        return {
+            "message": "Quick notification sent",
+            "results": result,
+            "success_count": sum(1 for success in result.values() if success),
+            "total_methods": len(result)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
