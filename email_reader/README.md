@@ -1,170 +1,160 @@
-# Autonomous Agent Starter with ChromaDB Memory
+# Nintendo Switch 2 Alert System
 
-A powerful autonomous agent framework with persistent vector-based memory using ChromaDB.
+**Never miss the Nintendo Switch 2 pre-order opportunity!**
 
-## Features
+An AI-powered email monitoring system that automatically watches your Gmail for Nintendo Switch 2 announcements and sends instant notifications to your phone via Pushover.
 
-- 🤖 **Autonomous Agent**: Basic agent with goal-oriented decision making
-- 🧠 **Memory System**: Persistent vector-based memory using ChromaDB
-- 🔍 **Semantic Search**: Find relevant memories using embeddings
-- 📊 **Memory Types**: Support for observations, actions, goals, reflections, and learnings
-- 🌐 **REST API**: Full API for interacting with the agent and memory system
-- 📈 **Memory Analytics**: Statistics and insights about stored memories
+## Table of Contents
 
-## Memory System Overview
+- [✨ Features](#-features)
+- [🚀 Quick Start](#-quick-start)
+- [📋 Prerequisites](#-prerequisites)
+- [⚙️ Installation](#️-installation)
+- [🔧 Configuration](#-configuration)
+- [🎮 Nintendo Switch 2 Monitoring](#-nintendo-switch-2-monitoring)
+  - [Manual Testing](#manual-testing)
+  - [Automated Monitoring with Cron](#automated-monitoring-with-cron)
+  - [How It Works](#how-it-works)
+- [🔔 Notification System](#-notification-system)
+- [🧠 AI Memory System](#-ai-memory-system)
+- [📧 Gmail Integration](#-gmail-integration)
+- [🛠️ Development](#️-development)
+- [📖 API Reference](#-api-reference)
+- [🔍 Troubleshooting](#-troubleshooting)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
 
-The memory system uses ChromaDB to store vector embeddings of memories, enabling semantic search and retrieval. Each memory entry includes:
+## ✨ Features
 
-- **Content**: The actual memory text
-- **Type**: Classification (observation, action, goal, reflection, learning, context)
-- **Importance Score**: How important this memory is (0-1)
-- **Metadata**: Additional contextual information
-- **Timestamp**: When the memory was created
-- **Embedding**: Vector representation for semantic search
+- **🎮 Nintendo Switch 2 Email Detection**: AI-powered monitoring of Gmail for Switch 2 announcements
+- **🔔 Instant Notifications**: Pushover notifications sent directly to your phone
+- **🧠 Smart Memory System**: Persistent vector-based memory using ChromaDB
+- **📧 Gmail Integration**: Full Gmail API access with OAuth authentication
+- **🤖 AI Analysis**: OpenAI-powered email importance analysis
+- **⏰ Automated Monitoring**: Cron job support for continuous monitoring
+- **🔍 Semantic Search**: Find relevant memories and emails using embeddings
+- **🔗 REST API**: Full API for all system interactions
 
-## Getting Started
+## 🚀 Quick Start
 
-### Prerequisites
+**Get up and running in 5 minutes:**
 
-- Docker and Docker Compose
-- Python 3.10+
-- An OpenAI API key
+1. **Clone and start the system:**
 
-### Installation and Running the Application
+   ```bash
+   git clone <repository_url>
+   cd email_reader
+   make up
+   ```
 
-1.  **Clone the repository:**
+2. **Set up Pushover notifications:**
 
-    ```bash
-    git clone <repository_url>
-    cd autonomous_agent_starter
-    ```
+   - Create account at [pushover.net](https://pushover.net)
+   - Get your User Key and create an Application Token
+   - Add to `.env` file:
+     ```
+     PUSHOVER_USER_KEY=your_user_key
+     PUSHOVER_APP_TOKEN=your_app_token
+     ```
 
-2.  **Set up your environment:**
-    Create a `.env` file in the project root and add your OpenAI API key:
+3. **Test the system:**
 
-    ```
-    OPENAI_API_KEY="your_openai_api_key"
-    ```
+   ```bash
+   # Test notifications
+   curl -X POST "http://localhost:8000/notifications/send" \
+     -H "Content-Type: application/json" \
+     -d '{"message": "Test notification!", "title": "Nintendo Monitor", "methods": ["pushover"]}'
 
-3.  **Run with Docker Compose:**
-    This is the recommended way to run the application. It starts the FastAPI application and a ChromaDB instance in separate containers.
+   # Test Nintendo monitor
+   curl -X POST http://localhost:8000/nintendo/monitor/test
+   ```
 
-    ```bash
-    docker-compose up --build
-    ```
+4. **Set up automated monitoring:**
+   ```bash
+   # Add to cron (every 15 minutes)
+   crontab -e
+   # Add this line:
+   */15 * * * * curl -s -X POST http://localhost:8000/nintendo/monitor/start >> /tmp/nintendo_monitor.log 2>&1
+   ```
 
-    The application will be available at `http://localhost:8000`.
+**You're now monitoring for Nintendo Switch 2 announcements!** 🎮
 
-## Usage
+## 📋 Prerequisites
 
-### Basic Agent (No Memory)
+- **Docker & Docker Compose**
+- **OpenAI API Key** (for AI analysis)
+- **Gmail Account** (for email monitoring)
+- **Pushover Account** (for notifications)
 
-```python
-from agents.agent import run_agent
+## ⚙️ Installation
 
-result = run_agent("Your goal here")
-print(result)
-```
-
-### Memory-Aware Agent
-
-```python
-from agents.memory_agent import MemoryAwareAgent
-
-# Initialize the agent
-agent = MemoryAwareAgent()
-
-# Run with memory-enhanced decision making
-response = agent.run_agent(
-    goal="Design a user interface",
-    current_context="For elderly users",
-    memory_search_limit=5
-)
-```
-
-### Adding Memories
-
-```python
-# Add different types of memories
-agent.add_observation("Users prefer simple interfaces", importance_score=0.8)
-agent.add_learning("Breaking tasks into steps improves success", importance_score=0.9)
-agent.add_reflection("Always consider user perspective", importance_score=0.7)
-
-# Add with metadata
-agent.add_observation(
-    "Database queries are slow without indexes",
-    importance_score=0.9,
-    metadata={"domain": "performance", "source": "monitoring"}
-)
-```
-
-### Searching Memories
-
-```python
-# Search for relevant memories
-memories = agent.search_memories("performance optimization", limit=5)
-
-# Get memories by type
-learnings = agent.get_memories_by_type(MemoryType.LEARNING, limit=10)
-
-# Get memory statistics
-stats = agent.get_memory_stats()
-```
-
-## API Endpoints
-
-The API documentation is available at `http://localhost:8000/docs` when the application is running.
-
-- `POST /run-agent`: Run the basic agent with a goal.
-- `POST /run-with-memory`: Run the memory-aware agent.
-- `POST /memory/add`: Add a memory to the database.
-- `POST /memory/search`: Search for memories.
-- `GET /memory/stats`: Get statistics about the memory database.
-- `POST /memory/clear`: Clear all memories from the database.
-
-## Development Workflow
-
-This project uses `make` to simplify Docker Compose commands. For a list of all available commands, run:
+### 1. Clone the Repository
 
 ```bash
-make help
+git clone <repository_url>
+cd email_reader
 ```
 
-### Primary Commands
+### 2. Environment Setup
 
-| Action           | Command        | Description                                       |
-| ---------------- | -------------- | ------------------------------------------------- |
-| **Start**        | `make up`      | Starts all services in the background.            |
-| **Stop**         | `make down`    | Stops all services and removes containers.        |
-| **Rebuild**      | `make rebuild` | Rebuilds the app image and restarts all services. |
-| **View Logs**    | `make logs`    | Follows the logs for the `app` service.           |
-| **Check Status** | `make status`  | Shows the status of the running services.         |
+Create a `.env` file in the project root:
 
-### Raw `docker-compose` commands
+```env
+# Required
+OPENAI_API_KEY=your_openai_api_key
 
-If you prefer not to use `make`, you can use the standard `docker-compose` commands.
+# Pushover Notifications (Recommended)
+PUSHOVER_USER_KEY=your_pushover_user_key
+PUSHOVER_APP_TOKEN=your_pushover_app_token
 
-#### Command Quick Reference
+# Optional: Other notification methods
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+TWILIO_FROM_NUMBER=your_twilio_number
+TWILIO_TO_NUMBER=your_phone_number
+DISCORD_WEBHOOK_URL=your_discord_webhook
+SLACK_WEBHOOK_URL=your_slack_webhook
+```
 
-| Action           | Command                      | Description                                   |
-| ---------------- | ---------------------------- | --------------------------------------------- |
-| **Start**        | `docker-compose up -d`       | Starts services in the background.            |
-| **Stop**         | `docker-compose down`        | Stops and removes containers, networks.       |
-| **View Logs**    | `docker-compose logs -f app` | Follows the logs for the `app` service.       |
-| **Check Status** | `docker-compose ps`          | Lists the running containers for the project. |
+### 3. Start the System
 
-## Memory Types
+```bash
+# Using make (recommended)
+make up
 
-- **observation**: Things the agent has observed
-- **action**: Actions the agent has taken
-- **goal**: Goals the agent has pursued
-- **reflection**: Agent's reflections and insights
-- **learning**: Lessons learned from experiences
-- **context**: Contextual information
+# Or using docker-compose directly
+docker-compose up -d
+```
 
-## Configuration
+### 4. Gmail Authentication
 
-The memory system can be configured by modifying the `ChromaMemoryManager` initialization:
+Run the Gmail authentication script:
+
+```bash
+python3 authenticate_gmail.py
+```
+
+The system will be available at `http://localhost:8000`.
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable              | Description                    | Required    |
+| --------------------- | ------------------------------ | ----------- |
+| `OPENAI_API_KEY`      | OpenAI API key for AI analysis | Yes         |
+| `PUSHOVER_USER_KEY`   | Pushover user key              | Recommended |
+| `PUSHOVER_APP_TOKEN`  | Pushover application token     | Recommended |
+| `TWILIO_ACCOUNT_SID`  | Twilio account SID             | Optional    |
+| `TWILIO_AUTH_TOKEN`   | Twilio auth token              | Optional    |
+| `TWILIO_FROM_NUMBER`  | Twilio phone number            | Optional    |
+| `TWILIO_TO_NUMBER`    | Your phone number              | Optional    |
+| `DISCORD_WEBHOOK_URL` | Discord webhook URL            | Optional    |
+| `SLACK_WEBHOOK_URL`   | Slack webhook URL              | Optional    |
+
+### Memory System Configuration
+
+The memory system uses ChromaDB for persistent vector storage:
 
 ```python
 from memory import ChromaMemoryManager
@@ -176,41 +166,401 @@ memory_manager = ChromaMemoryManager(
 )
 ```
 
-## File Structure
+## 🎮 Nintendo Switch 2 Monitoring
+
+The core feature of this system - never miss the Nintendo Switch 2 announcement!
+
+### Manual Testing
+
+```bash
+# Test the Nintendo monitor
+curl -X POST http://localhost:8000/nintendo/monitor/test
+
+# Check monitor status
+curl http://localhost:8000/nintendo/monitor/status
+
+# Test Pushover notifications
+curl -X POST "http://localhost:8000/notifications/send" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Test notification!", "title": "Nintendo Monitor", "methods": ["pushover"]}'
+```
+
+### Automated Monitoring with Cron
+
+The recommended approach for continuous monitoring:
+
+#### Basic Setup (Every 15 Minutes)
+
+```bash
+# Edit your crontab
+crontab -e
+
+# Add this line for basic monitoring
+*/15 * * * * curl -s -X POST http://localhost:8000/nintendo/monitor/start > /dev/null 2>&1
+```
+
+#### Recommended Setup (With Logging)
+
+```bash
+# Check every 15 minutes with logging
+*/15 * * * * curl -s -X POST http://localhost:8000/nintendo/monitor/start >> /tmp/nintendo_monitor.log 2>&1
+```
+
+#### Alternative Schedules
+
+```bash
+# Every 5 minutes (aggressive monitoring)
+*/5 * * * * curl -s -X POST http://localhost:8000/nintendo/monitor/start >> /tmp/nintendo_monitor.log 2>&1
+
+# Every 30 minutes (conservative)
+*/30 * * * * curl -s -X POST http://localhost:8000/nintendo/monitor/start >> /tmp/nintendo_monitor.log 2>&1
+
+# Business hours only (9 AM - 6 PM, Monday-Friday)
+*/15 9-18 * * 1-5 curl -s -X POST http://localhost:8000/nintendo/monitor/start >> /tmp/nintendo_monitor.log 2>&1
+```
+
+#### Cron Management
+
+```bash
+# List current cron jobs
+crontab -l
+
+# Edit cron jobs
+crontab -e
+
+# Remove all cron jobs
+crontab -r
+
+# Monitor your logs
+tail -f /tmp/nintendo_monitor.log
+```
+
+### How It Works
+
+1. **🔍 Email Scanning**: Monitors Gmail for emails from Nintendo domains
+2. **🎯 Keyword Detection**: Looks for "Switch 2" + purchase terms ("pre-order", "buy now", etc.)
+3. **🤖 AI Analysis**: Uses OpenAI to determine email importance
+4. **🚨 Instant Alert**: Sends Pushover notification to your phone
+5. **💾 Memory Storage**: Remembers processed emails to avoid duplicates
+
+**Example Alert:**
 
 ```
-autonomous_agent_starter/
-├── agents/
+🎮 NINTENDO SWITCH 2 EMAIL DETECTED! 🚨
+
+Subject: Nintendo Switch 2 - Pre-Orders Now Open!
+From: nintendo@nintendo.com
+Date: 2024-12-22T09:00:00Z
+
+AI Analysis: This email announces official pre-order
+opening for Nintendo Switch 2. IMMEDIATE ACTION RECOMMENDED!
+```
+
+**Monitored Domains:**
+
+- nintendo.com
+- nintendo.co.jp
+- nintendo-europe.com
+- mynintendo.com
+- nintendo.net
+
+## 🔔 Notification System
+
+Multiple notification methods supported:
+
+### Pushover (Recommended)
+
+- **Setup**: Create account at [pushover.net](https://pushover.net)
+- **Pros**: Reliable, instant, works on all devices
+- **Configuration**: Add `PUSHOVER_USER_KEY` and `PUSHOVER_APP_TOKEN` to `.env`
+
+### Twilio SMS
+
+- **Setup**: Create account at [twilio.com](https://twilio.com)
+- **Configuration**: Add Twilio credentials to `.env`
+
+### Discord/Slack Webhooks
+
+- **Setup**: Create webhook in your Discord/Slack workspace
+- **Configuration**: Add webhook URL to `.env`
+
+### Test Notifications
+
+```bash
+# Test all configured methods
+curl -X POST http://localhost:8000/notifications/test
+
+# Test specific method
+curl -X POST "http://localhost:8000/notifications/send" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Test!", "methods": ["pushover"]}'
+```
+
+## 🧠 AI Memory System
+
+Persistent vector-based memory using ChromaDB for intelligent email processing:
+
+### Memory Types
+
+- **observation**: Things the system has observed
+- **action**: Actions the system has taken
+- **goal**: Goals the system has pursued
+- **reflection**: System reflections and insights
+- **learning**: Lessons learned from experiences
+- **context**: Contextual information
+
+### Usage Examples
+
+```python
+from agents.memory_agent import MemoryAwareAgent
+
+agent = MemoryAwareAgent()
+
+# Add memories
+agent.add_observation("Nintendo emails often arrive on Tuesdays", importance_score=0.8)
+agent.add_learning("Pre-order emails contain 'limited availability' keywords", importance_score=0.9)
+
+# Search memories
+memories = agent.search_memories("Nintendo email patterns", limit=5)
+
+# Get statistics
+stats = agent.get_memory_stats()
+```
+
+### API Endpoints
+
+```bash
+# Add memory
+curl -X POST "http://localhost:8000/memory/add" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Nintendo emails peak on Tuesdays", "memory_type": "observation"}'
+
+# Search memories
+curl -X POST "http://localhost:8000/memory/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Nintendo patterns", "limit": 10}'
+
+# Get statistics
+curl http://localhost:8000/memory/stats
+```
+
+## 📧 Gmail Integration
+
+Full Gmail API integration with OAuth authentication:
+
+### Setup
+
+1. **Authenticate**: Run `python3 authenticate_gmail.py`
+2. **Grant Permissions**: Follow the OAuth flow
+3. **Test**: `curl http://localhost:8000/gmail/status`
+
+### Available Operations
+
+```bash
+# Get Gmail profile
+curl http://localhost:8000/gmail/profile
+
+# Search emails
+curl -X POST "http://localhost:8000/gmail/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "from:nintendo.com", "max_results": 10}'
+
+# Get unread emails
+curl http://localhost:8000/gmail/unread
+
+# Process and analyze emails with AI
+curl -X POST "http://localhost:8000/gmail/process-and-analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"email_query": "from:nintendo.com", "max_emails": 5}'
+```
+
+## 🛠️ Development
+
+### Development Workflow
+
+This project uses `make` to simplify Docker Compose commands:
+
+```bash
+# Get help
+make help
+
+# Start services
+make up
+
+# Stop services
+make down
+
+# Rebuild and restart
+make rebuild
+
+# View logs
+make logs
+
+# Check status
+make status
+```
+
+### Raw Docker Commands
+
+```bash
+# Start services
+docker-compose up -d
+
+# Stop services
+docker-compose down
+
+# View logs
+docker-compose logs -f app
+
+# Check status
+docker-compose ps
+```
+
+### File Structure
+
+```
+email_reader/
+├── agents/                    # AI agents
 │   ├── agent.py              # Basic agent
 │   └── memory_agent.py       # Memory-aware agent
-├── memory/
-│   ├── __init__.py           # Package initialization
-│   ├── memory_types.py       # Memory type definitions
-│   └── chroma_memory.py      # ChromaDB memory manager
-├── app/
-│   └── main.py               # FastAPI application
-├── examples/
-│   └── memory_example.py     # Usage examples
-├── requirements.txt          # Dependencies
+├── app/                      # FastAPI application
+│   └── main.py              # API endpoints
+├── memory/                   # Memory system
+│   ├── chroma_memory.py     # ChromaDB manager
+│   └── memory_types.py      # Memory type definitions
+├── services/                 # Core services
+│   ├── gmail_service.py     # Gmail integration
+│   ├── nintendo_monitor.py  # Nintendo monitoring
+│   └── notification_service.py # Notifications
+├── docker-compose.yml        # Docker configuration
+├── requirements.txt          # Python dependencies
 └── README.md                # This file
 ```
 
-## Dependencies
+## 📖 API Reference
 
-- `chromadb` - Vector database for memory storage
-- `langchain-openai` - OpenAI integration
-- `fastapi` - Web API framework
-- `pydantic` - Data validation
-- `python-dotenv` - Environment variable management
+Full API documentation available at `http://localhost:8000/docs` when running.
 
-## Contributing
+### Core Endpoints
+
+| Endpoint                   | Method | Description                       |
+| -------------------------- | ------ | --------------------------------- |
+| `/nintendo/monitor/test`   | POST   | Test Nintendo monitor             |
+| `/nintendo/monitor/start`  | POST   | Run Nintendo monitor (production) |
+| `/nintendo/monitor/status` | GET    | Get monitor status                |
+| `/notifications/send`      | POST   | Send notification                 |
+| `/notifications/test`      | POST   | Test all notification methods     |
+| `/memory/add`              | POST   | Add memory                        |
+| `/memory/search`           | POST   | Search memories                   |
+| `/gmail/search`            | POST   | Search Gmail                      |
+| `/run-with-memory`         | POST   | Run AI agent with memory          |
+
+### Nintendo Monitor Endpoints
+
+- `GET /nintendo/monitor/status` - Get monitor status
+- `POST /nintendo/monitor/test` - Test monitor
+- `POST /nintendo/monitor/start` - Run monitor (for cron jobs)
+- `POST /nintendo/monitor/configure` - Configure alert methods
+
+### Notification Endpoints
+
+- `GET /notifications/status` - Get available notification methods
+- `POST /notifications/send` - Send notification
+- `POST /notifications/test` - Test all methods
+
+### Memory Endpoints
+
+- `POST /memory/add` - Add memory
+- `POST /memory/search` - Search memories
+- `GET /memory/stats` - Get memory statistics
+- `POST /memory/clear` - Clear all memories
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+**🔴 Cron job not running?**
+
+- Check containers: `docker-compose ps`
+- Test API manually: `curl http://localhost:8000/nintendo/monitor/status`
+- Check cron logs: `tail /tmp/nintendo_monitor.log`
+
+**🔴 No Nintendo emails found?**
+
+- Verify Gmail authentication: `curl http://localhost:8000/gmail/status`
+- Check if subscribed to Nintendo newsletters
+- Test Gmail search: `curl -X POST "http://localhost:8000/gmail/search" -H "Content-Type: application/json" -d '{"query": "from:nintendo.com"}'`
+
+**🔴 Pushover notifications not working?**
+
+- Test directly: `curl -X POST http://localhost:8000/notifications/test`
+- Verify environment variables are set
+- Check Pushover app is installed on your phone
+- Verify User Key and App Token are correct
+
+**🔴 Memory system issues?**
+
+- Check ChromaDB container: `docker-compose logs chroma`
+- Clear memory if corrupted: `curl -X POST http://localhost:8000/memory/clear`
+- Check memory stats: `curl http://localhost:8000/memory/stats`
+
+**🔴 Gmail authentication problems?**
+
+- Re-run: `python3 authenticate_gmail.py`
+- Check if `token.json` exists
+- Verify OAuth scopes include Gmail access
+
+### Debug Commands
+
+```bash
+# Check all service status
+curl http://localhost:8000/nintendo/monitor/status
+curl http://localhost:8000/notifications/status
+curl http://localhost:8000/gmail/status
+curl http://localhost:8000/memory/stats
+
+# View logs
+docker-compose logs app
+tail -f /tmp/nintendo_monitor.log
+
+# Test individual components
+curl -X POST http://localhost:8000/nintendo/monitor/test
+curl -X POST http://localhost:8000/notifications/test
+```
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+### Development Setup
 
-MIT License
+```bash
+# Clone your fork
+git clone https://github.com/yourusername/email_reader.git
+cd email_reader
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run tests
+python -m pytest
+
+# Start development server
+make up
+```
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
+
+---
+
+**🎮 Ready to catch the Nintendo Switch 2 announcement? Set up your monitoring system now!**

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from services.gmail_service import GmailService
 from agents.memory_agent import MemoryAwareAgent
 from memory.chroma_memory import ChromaMemoryManager
+from services.notification_service import NotificationService, NotificationType
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AlertConfig:
     """Configuration for different alert methods"""
-    method: str  # 'console', 'webhook', 'email', 'file'
+    method: str  # 'console', 'webhook', 'email', 'file', 'pushover'
     target: str  # URL for webhook, email address, file path, etc.
     enabled: bool = True
 
@@ -33,6 +34,14 @@ class NintendoSwitch2Monitor:
         self.gmail_service = gmail_service or GmailService()
         self.memory_manager = memory_manager or ChromaMemoryManager()
         self.agent = MemoryAwareAgent(self.memory_manager)
+        
+        # Initialize notification service for Pushover alerts
+        try:
+            self.notification_service = NotificationService(gmail_service=self.gmail_service)
+            logger.info("Notification service initialized for Nintendo monitor")
+        except Exception as e:
+            self.notification_service = None
+            logger.warning(f"Notification service not available: {e}")
         
         # Nintendo-related sender patterns
         self.nintendo_senders = [
@@ -71,6 +80,25 @@ class NintendoSwitch2Monitor:
         self.last_check = None
         self.alert_configs = []
         
+        # Automatically add Pushover alert if configured
+        self._add_pushover_alert_if_available()
+        
+    def _add_pushover_alert_if_available(self):
+        """Automatically add Pushover alert if credentials are available"""
+        if self.notification_service:
+            available_methods = self.notification_service._get_available_methods()
+            if NotificationType.PUSHOVER in available_methods:
+                # Add Pushover alert config
+                pushover_config = AlertConfig(
+                    method="pushover",
+                    target="",  # Not needed for Pushover
+                    enabled=True
+                )
+                self.alert_configs.append(pushover_config)
+                logger.info("🔔 Pushover notifications enabled for Nintendo monitoring")
+            else:
+                logger.info("Pushover not configured - missing PUSHOVER_USER_KEY or PUSHOVER_APP_TOKEN")
+    
     def add_alert_config(self, config: AlertConfig):
         """Add an alert configuration"""
         self.alert_configs.append(config)
@@ -105,9 +133,9 @@ class NintendoSwitch2Monitor:
         sender_queries = [f"from:{sender}" for sender in self.nintendo_senders]
         query_parts.append(f"({' OR '.join(sender_queries)})")
         
-        # Only check recent emails (last 24 hours)
-        yesterday = datetime.now() - timedelta(days=1)
-        query_parts.append(f"after:{yesterday.strftime('%Y/%m/%d')}")
+        # Only check recent emails (last 30 days to account for date issues)
+        last_month = datetime.now() - timedelta(days=30)
+        query_parts.append(f"after:{last_month.strftime('%Y/%m/%d')}")
         
         gmail_query = " ".join(query_parts)
         
@@ -245,9 +273,9 @@ class NintendoSwitch2Monitor:
             "message": f"📧 Nintendo Switch 2 mentioned in email\n\nSubject: {subject}\nFrom: {sender}"
         }
         
-        # Send lower priority alerts
+        # Send lower priority alerts (including Pushover for mentions)
         for config in self.alert_configs:
-            if config.enabled and config.method in ['console', 'file']:  # Only certain alert types for mentions
+            if config.enabled and config.method in ['console', 'file', 'pushover']:
                 await self._send_alert(config, alert_data)
         
         logger.info(f"📧 Switch 2 mentioned: {subject}")
@@ -264,6 +292,8 @@ class NintendoSwitch2Monitor:
                 await self._send_webhook_alert(config.target, alert_data)
             elif config.method == 'email':
                 await self._send_email_alert(config.target, alert_data)
+            elif config.method == 'pushover':
+                await self._send_pushover_alert(alert_data)
             else:
                 logger.warning(f"Unknown alert method: {config.method}")
                 
@@ -305,13 +335,50 @@ class NintendoSwitch2Monitor:
         # This would require SMTP setup - placeholder for now
         logger.info(f"Email alert would be sent to {email_address}: {alert_data['message']}")
     
+    async def _send_pushover_alert(self, alert_data: Dict[str, Any]):
+        """Send alert via Pushover"""
+        if not self.notification_service:
+            logger.warning("Notification service not available for Pushover alert")
+            return
+        
+        try:
+            # Create title and message for Pushover
+            title = f"Nintendo Switch 2 Alert - {alert_data['urgency']}"
+            message = alert_data['message']
+            
+            # Add AI analysis if available
+            if alert_data.get('ai_analysis'):
+                message += f"\n\nAI Analysis: {alert_data['ai_analysis']}"
+            
+            # Send via Pushover
+            result = self.notification_service.send_notification(
+                message=message,
+                title=title,
+                methods=[NotificationType.PUSHOVER]
+            )
+            
+            if result.get('pushover', False):
+                logger.info("✅ Pushover alert sent successfully!")
+            else:
+                logger.error("❌ Failed to send Pushover alert")
+                
+        except Exception as e:
+            logger.error(f"Error sending Pushover alert: {e}")
+    
     def get_monitoring_stats(self) -> Dict[str, Any]:
         """Get statistics about the monitoring"""
+        # Check if Pushover is available
+        pushover_available = False
+        if self.notification_service:
+            available_methods = self.notification_service._get_available_methods()
+            pushover_available = NotificationType.PUSHOVER in available_methods
+        
         return {
             "last_check": self.last_check.isoformat() if self.last_check else None,
             "nintendo_senders": self.nintendo_senders,
             "switch2_keywords": self.switch2_keywords,
             "purchase_keywords": self.purchase_keywords,
             "alert_configs": len(self.alert_configs),
+            "pushover_available": pushover_available,
             "memory_stats": self.agent.get_memory_stats()
         } 

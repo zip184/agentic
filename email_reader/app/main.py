@@ -9,6 +9,7 @@ from memory import MemoryType, ChromaMemoryManager
 from services.gmail_service import GmailService
 from services.nintendo_monitor import NintendoSwitch2Monitor, AlertConfig
 from services.notification_service import NotificationService, NotificationType, send_quick_notification
+# from services.scheduler_service import SchedulerService, JobConfig  # Disabled - using external cron instead
 
 app = FastAPI(title="Autonomous Agent API with Memory", version="1.0.0")
 
@@ -39,6 +40,16 @@ try:
 except Exception as e:
     notification_service = None
     print(f"Notification service initialization failed: {e}")
+
+# Initialize Scheduler Service - DISABLED (using external cron instead)
+# try:
+#     scheduler_service = SchedulerService(gmail_service=gmail_service, nintendo_monitor=nintendo_monitor)
+#     scheduler_service.start_scheduler()
+#     print("Scheduler service initialized successfully")
+# except Exception as e:
+#     scheduler_service = None
+#     print(f"Scheduler service initialization failed: {e}")
+scheduler_service = None  # Disabled
 
 class AgentRequest(BaseModel):
     goal: str
@@ -84,6 +95,20 @@ class NotificationRequest(BaseModel):
     message: str
     title: Optional[str] = "Notification"
     methods: Optional[List[str]] = None  # List of notification method names
+
+# Scheduler classes disabled - using external cron instead
+# class SchedulerJobRequest(BaseModel):
+#     id: str
+#     name: str
+#     description: str
+#     endpoint: str
+#     schedule_type: str  # 'interval' or 'cron'
+#     schedule_value: str  # '15' for 15 minutes, or '*/15 * * * *' for cron
+#     enabled: Optional[bool] = True
+
+# class NintendoMonitorJobRequest(BaseModel):
+#     interval_minutes: Optional[int] = 15
+#     cron_expression: Optional[str] = None  # If provided, uses cron instead of interval
 
 
 
