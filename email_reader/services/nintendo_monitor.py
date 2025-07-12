@@ -27,7 +27,7 @@ class AlertConfig:
 
 class NintendoSwitch2Monitor:
     """
-    Monitors Gmail for Nintendo Switch 2 related emails and sends alerts
+    Monitors Gmail for Nintendo Switch 2 and Amazon waitlist related emails and sends alerts
     """
     
     def __init__(self, gmail_service: GmailService = None, memory_manager: ChromaMemoryManager = None):
@@ -53,6 +53,24 @@ class NintendoSwitch2Monitor:
             "gmail.com"  # Temporary addition for testing
         ]
         
+        # Amazon-related sender patterns
+        self.amazon_senders = [
+            "amazon.com",
+            "amazon.ca",
+            "amazon.co.uk",
+            "amazon.de",
+            "amazon.fr",
+            "amazon.co.jp",
+            "amazon.in",
+            "amazon.com.au",
+            "amazon.es",
+            "amazon.it",
+            "amazon.com.br",
+            "amazon.com.mx",
+            "aboutamazon.com",
+            "amazonses.com"
+        ]
+        
         # Switch 2 related keywords to look for
         self.switch2_keywords = [
             "switch 2",
@@ -62,6 +80,29 @@ class NintendoSwitch2Monitor:
             "next nintendo switch",
             "switch pro",
             "nintendo nx"
+        ]
+        
+        # Amazon waitlist keywords
+        self.amazon_waitlist_keywords = [
+            "waitlist",
+            "wait list",
+            "back in stock",
+            "now available",
+            "inventory update",
+            "product available",
+            "restocked",
+            "in stock",
+            "available to order",
+            "item available",
+            "your waitlist item",
+            "invitation requested",
+            "invited to purchase",
+            "invitation",
+            "purchase link",
+            "valid for",
+            "22 hours",
+            "grant requests",
+            "grant all requests"
         ]
         
         # Purchase-related keywords
@@ -111,7 +152,7 @@ class NintendoSwitch2Monitor:
         Args:
             check_interval_minutes: How often to check for new emails
         """
-        logger.info(f"Starting Nintendo Switch 2 email monitoring (checking every {check_interval_minutes} minutes)")
+        logger.info(f"Starting Nintendo Switch 2 and Amazon waitlist email monitoring (checking every {check_interval_minutes} minutes)")
         
         while True:
             try:
@@ -124,9 +165,23 @@ class NintendoSwitch2Monitor:
                 await asyncio.sleep(60)  # Wait 1 minute before retrying on error
     
     async def _check_for_switch2_emails(self):
-        """Check for new Nintendo Switch 2 related emails"""
+        """Check for new Nintendo Switch 2 and Amazon waitlist emails"""
         
-        # Search for emails from Nintendo in the last 24 hours
+        try:
+            # Check Nintendo emails for Switch 2 content
+            await self._check_nintendo_emails()
+            
+            # Check Amazon emails for waitlist notifications
+            await self._check_amazon_emails()
+                
+        except Exception as e:
+            logger.error(f"Error checking emails: {e}")
+            # Send failure notification using existing notification system
+            await self._send_failure_notification(str(e))
+    
+    async def _check_nintendo_emails(self):
+        """Check for Nintendo Switch 2 emails"""
+        # Search for emails from Nintendo in the last 30 days
         query_parts = []
         
         # Add Nintendo sender filters
@@ -141,27 +196,54 @@ class NintendoSwitch2Monitor:
         
         logger.info(f"Searching Gmail with query: {gmail_query}")
         
-        try:
-            # Get emails from Nintendo
-            nintendo_emails = self.gmail_service.get_messages(
-                query=gmail_query,
-                max_results=50
-            )
-            
-            if not nintendo_emails:
-                logger.info("No recent Nintendo emails found")
-                return
-            
-            logger.info(f"Found {len(nintendo_emails)} recent Nintendo emails to analyze")
-            
-            # Analyze each email for Switch 2 content
-            for email in nintendo_emails:
-                await self._analyze_email_for_switch2(email)
-                
-        except Exception as e:
-            logger.error(f"Error checking emails: {e}")
-            # Send failure notification using existing notification system
-            await self._send_failure_notification(str(e))
+        # Get emails from Nintendo
+        nintendo_emails = self.gmail_service.get_messages(
+            query=gmail_query,
+            max_results=50
+        )
+        
+        if not nintendo_emails:
+            logger.info("No recent Nintendo emails found")
+            return
+        
+        logger.info(f"Found {len(nintendo_emails)} recent Nintendo emails to analyze")
+        
+        # Analyze each email for Switch 2 content
+        for email in nintendo_emails:
+            await self._analyze_email_for_switch2(email)
+    
+    async def _check_amazon_emails(self):
+        """Check for Amazon waitlist emails"""
+        # Search for emails from Amazon in the last 30 days
+        query_parts = []
+        
+        # Add Amazon sender filters
+        sender_queries = [f"from:{sender}" for sender in self.amazon_senders]
+        query_parts.append(f"({' OR '.join(sender_queries)})")
+        
+        # Only check recent emails (last 30 days)
+        last_month = datetime.now() - timedelta(days=30)
+        query_parts.append(f"after:{last_month.strftime('%Y/%m/%d')}")
+        
+        gmail_query = " ".join(query_parts)
+        
+        logger.info(f"Searching Amazon emails with query: {gmail_query}")
+        
+        # Get emails from Amazon
+        amazon_emails = self.gmail_service.get_messages(
+            query=gmail_query,
+            max_results=50
+        )
+        
+        if not amazon_emails:
+            logger.info("No recent Amazon emails found")
+            return
+        
+        logger.info(f"Found {len(amazon_emails)} recent Amazon emails to analyze")
+        
+        # Analyze each email for waitlist content
+        for email in amazon_emails:
+            await self._analyze_email_for_amazon_waitlist(email)
     
     async def _analyze_email_for_switch2(self, email: Dict[str, Any]):
         """Analyze an individual email for Switch 2 content"""
@@ -205,6 +287,47 @@ class NintendoSwitch2Monitor:
                 "email_id": email_id,
                 "sender": sender,
                 "switch2_matches": ", ".join(switch2_matches),
+                "purchase_matches": ", ".join(purchase_matches)
+            }
+        )
+    
+    async def _analyze_email_for_amazon_waitlist(self, email: Dict[str, Any]):
+        """Analyze an individual Amazon email for waitlist notifications"""
+        
+        email_id = email.get('id', 'unknown')
+        subject = email.get('subject', '')
+        body = email.get('body_clean', '')
+        sender = email.get('from', '')
+        
+        logger.info(f"Processing Amazon email ID: {email_id}, Subject: {subject}")
+        
+        # Check if we've already processed this email
+        memory_query = f"Processed Amazon email {email_id}"
+        existing_memories = self.memory_manager.search_memories(memory_query, limit=1)
+        
+        if existing_memories:
+            logger.info(f"Amazon email {email_id} already processed, skipping duplicate alert")
+            return
+        
+        # Combine subject and body for analysis
+        email_content = f"{subject} {body}".lower()
+        
+        # Check for Amazon waitlist keywords
+        waitlist_matches = [kw for kw in self.amazon_waitlist_keywords if kw.lower() in email_content]
+        purchase_matches = [kw for kw in self.purchase_keywords if kw.lower() in email_content]
+        
+        if waitlist_matches:
+            # This looks like a waitlist notification!
+            await self._handle_amazon_waitlist_email(email, waitlist_matches, purchase_matches)
+        
+        # Store that we've processed this email
+        self.agent.add_observation(
+            observation=f"Processed Amazon email {email_id}: {subject}",
+            importance_score=0.3,
+            metadata={
+                "email_id": email_id,
+                "sender": sender,
+                "waitlist_matches": ", ".join(waitlist_matches),
                 "purchase_matches": ", ".join(purchase_matches)
             }
         )
@@ -281,6 +404,59 @@ class NintendoSwitch2Monitor:
                 await self._send_alert(config, alert_data)
         
         logger.info(f"📧 Switch 2 mentioned: {subject}")
+    
+    async def _handle_amazon_waitlist_email(self, email: Dict[str, Any], 
+                                          waitlist_matches: List[str], 
+                                          purchase_matches: List[str]):
+        """Handle when we find a potential Amazon waitlist notification"""
+        
+        email_id = email.get('id', 'unknown')
+        subject = email.get('subject', '')
+        sender = email.get('from', '')
+        date = email.get('date', '')
+        
+        # Use AI agent to analyze the email importance
+        analysis_goal = f"Analyze this Amazon email to determine if it's a genuine waitlist notification for a product back in stock"
+        email_context = f"""
+        Email from: {sender}
+        Subject: {subject}
+        Date: {date}
+        Waitlist keywords found: {', '.join(waitlist_matches)}
+        Purchase keywords found: {', '.join(purchase_matches)}
+        Body preview: {email.get('body_clean', '')[:500]}...
+        """
+        
+        ai_analysis = self.agent.run_agent(goal=analysis_goal, current_context=email_context)
+        
+        # Determine urgency based on content
+        urgency = "HIGH" if purchase_matches else "MEDIUM"
+        
+        alert_data = {
+            "email_id": email_id,
+            "subject": subject,
+            "sender": sender,
+            "date": date,
+            "waitlist_keywords": waitlist_matches,
+            "purchase_keywords": purchase_matches,
+            "ai_analysis": ai_analysis,
+            "urgency": urgency,
+            "message": f"🛒 AMAZON WAITLIST ALERT! 🚨\n\nSubject: {subject}\nFrom: {sender}\nDate: {date}\nWaitlist keywords: {', '.join(waitlist_matches)}"
+        }
+        
+        # Send alerts through all configured methods
+        for config in self.alert_configs:
+            if config.enabled:
+                await self._send_alert(config, alert_data)
+        
+        # Store as high-importance memory
+        importance_score = 0.9 if purchase_matches else 0.7
+        self.agent.add_learning(
+            learning=f"Amazon waitlist notification from {sender}: {subject}",
+            importance_score=importance_score,
+            metadata=alert_data
+        )
+        
+        logger.critical(f"🛒 AMAZON WAITLIST ALERT! Subject: {subject}")
     
     async def _send_alert(self, config: AlertConfig, alert_data: Dict[str, Any]):
         """Send an alert using the specified configuration"""
@@ -403,7 +579,9 @@ class NintendoSwitch2Monitor:
         return {
             "last_check": self.last_check.isoformat() if self.last_check else None,
             "nintendo_senders": self.nintendo_senders,
+            "amazon_senders": self.amazon_senders,
             "switch2_keywords": self.switch2_keywords,
+            "amazon_waitlist_keywords": self.amazon_waitlist_keywords,
             "purchase_keywords": self.purchase_keywords,
             "alert_configs": len(self.alert_configs),
             "pushover_available": pushover_available,

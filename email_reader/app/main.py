@@ -409,7 +409,7 @@ def process_emails_with_agent(request: EmailProcessingRequest):
 # Nintendo Switch 2 Monitoring Endpoints
 @app.get("/nintendo/monitor/status")
 def get_nintendo_monitor_status():
-    """Get Nintendo Switch 2 monitor status"""
+    """Get Nintendo Switch 2 and Amazon waitlist monitor status"""
     if nintendo_monitor is None:
         return {"status": "unavailable", "message": "Nintendo monitor not initialized"}
     
@@ -421,7 +421,7 @@ def get_nintendo_monitor_status():
 
 @app.post("/nintendo/monitor/configure")
 def configure_nintendo_monitor(request: MonitorConfigRequest):
-    """Configure Nintendo Switch 2 monitor alerts"""
+    """Configure Nintendo Switch 2 and Amazon waitlist monitor alerts"""
     if nintendo_monitor is None:
         raise HTTPException(status_code=503, detail="Nintendo monitor not available")
     
@@ -448,7 +448,7 @@ def configure_nintendo_monitor(request: MonitorConfigRequest):
 
 @app.post("/nintendo/monitor/start")
 def start_nintendo_monitor(check_interval_minutes: int = 15):
-    """Start Nintendo Switch 2 monitoring (this would typically run in background)"""
+    """Start Nintendo Switch 2 and Amazon waitlist monitoring (this would typically run in background)"""
     if nintendo_monitor is None:
         raise HTTPException(status_code=503, detail="Nintendo monitor not available")
     
@@ -471,7 +471,7 @@ def start_nintendo_monitor(check_interval_minutes: int = 15):
 
 @app.post("/nintendo/monitor/test")
 def test_nintendo_monitor():
-    """Test Nintendo Switch 2 monitor with current emails"""
+    """Test Nintendo Switch 2 and Amazon waitlist monitor with current emails"""
     if nintendo_monitor is None:
         raise HTTPException(status_code=503, detail="Nintendo monitor not available")
     
