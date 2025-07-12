@@ -18,17 +18,29 @@ class ChromaMemoryManager:
         Args:
             collection_name: Name of the ChromaDB collection
         """
-        # Connect to ChromaDB server running in Docker
-        try:
-            # Try the new client configuration first
-            self.client = chromadb.HttpClient(
-                host="chroma", 
-                port=8000,
-                settings=Settings(allow_reset=True)
-            )
-        except Exception:
-            # Fallback to basic configuration
-            self.client = chromadb.HttpClient(host="chroma", port=8000)
+        # Connect to ChromaDB server running in Docker with retry logic
+        import time
+        max_retries = 5
+        retry_delay = 2  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"Attempting to connect to ChromaDB (attempt {attempt + 1}/{max_retries})...")
+                # Simple configuration for ChromaDB
+                self.client = chromadb.HttpClient(
+                    host="chroma", 
+                    port=8000
+                )
+                print("✅ Successfully connected to ChromaDB!")
+                break
+            except Exception as e:
+                print(f"❌ Failed to connect to ChromaDB (attempt {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    print("💥 All connection attempts failed!")
+                    raise e
         
         self.collection = self.client.get_or_create_collection(name=collection_name)
         

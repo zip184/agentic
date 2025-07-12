@@ -1,5 +1,5 @@
 # Makefile for managing the Dockerized application
-.PHONY: help up down restart rebuild logs status cron-start cron-stop cron-status cron-logs cron-test
+.PHONY: help auth-gmail auth-status auth-clean up down restart rebuild logs logs-all logs-failed status cron-start cron-stop cron-status cron-logs cron-test
 
 .DEFAULT_GOAL := help
 
@@ -10,12 +10,100 @@ CRON_JOB = $(CRON_SCHEDULE) $(CRON_COMMAND)
 CRON_COMMENT = Nintendo Switch 2 Monitor
 
 # ==============================================================================
+# Gmail Authentication
+# ==============================================================================
+
+auth-gmail: ## Run Gmail authentication setup (creates token.pickle)
+	@echo "🔐 Starting Gmail authentication..."
+	@echo "⚠️  This must be run locally (not in Docker) with a browser available"
+	@echo ""
+	@if [ ! -f "credentials.json" ]; then \
+		echo "❌ ERROR: credentials.json not found!"; \
+		echo ""; \
+		echo "📋 Setup steps:"; \
+		echo "1. Go to Google Cloud Console: https://console.cloud.google.com/"; \
+		echo "2. Create/select a project"; \
+		echo "3. Enable Gmail API"; \
+		echo "4. Create OAuth 2.0 credentials"; \
+		echo "5. Download the JSON file"; \
+		echo "6. Rename it to 'credentials.json'"; \
+		echo "7. Place it in this directory"; \
+		echo "8. Run 'make auth-gmail' again"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@python3 authenticate_gmail.py
+	@echo ""
+	@echo "✅ Gmail authentication completed!"
+	@echo "🔄 Rebuilding containers with new credentials..."
+	@make rebuild
+
+auth-status: ## Check Gmail authentication status
+	@echo "🔍 Checking Gmail authentication status..."
+	@echo "======================================="
+	@if [ -f "token.pickle" ]; then \
+		echo "✅ token.pickle found - Gmail authentication is set up"; \
+		echo "📅 File created: $$(stat -f %Sc token.pickle)"; \
+	else \
+		echo "❌ token.pickle not found - Gmail authentication needed"; \
+		echo "💡 Run 'make auth-gmail' to set up authentication"; \
+	fi
+	@echo ""
+	@if [ -f "credentials.json" ]; then \
+		echo "✅ credentials.json found"; \
+	else \
+		echo "❌ credentials.json not found"; \
+		echo "💡 Download from Google Cloud Console and rename to credentials.json"; \
+	fi
+
+auth-clean: ## Remove authentication files (for re-authentication)
+	@echo "🧹 Cleaning authentication files..."
+	@if [ -f "token.pickle" ]; then \
+		rm token.pickle; \
+		echo "✅ Removed token.pickle"; \
+	else \
+		echo "ℹ️  token.pickle not found"; \
+	fi
+	@echo "💡 Run 'make auth-gmail' to re-authenticate"
+
+# ==============================================================================
 # Development Commands
 # ==============================================================================
 
 up: ## Start the application services in the background
 	@echo "Starting services..."
 	@docker-compose up -d
+	@echo ""
+	@echo "Checking container status..."
+	@sleep 3
+	@docker-compose ps
+	@echo ""
+	@echo "Checking for failed containers..."
+	@failed_containers=$$(docker-compose ps --filter "status=exited" --format "table {{.Name}}\t{{.Status}}" | grep -v "NAME" | grep -v "^$$" || true); \
+	if [ -n "$$failed_containers" ]; then \
+		echo "❌ Some containers failed to start:"; \
+		echo "$$failed_containers"; \
+		echo ""; \
+		echo "📋 Container logs for failed services:"; \
+		echo "====================================="; \
+		for container in $$(docker-compose ps --filter "status=exited" --format "{{.Name}}" | grep -v "^$$"); do \
+			echo ""; \
+			echo "🔍 Logs for $$container:"; \
+			echo "------------------------"; \
+			docker logs $$container --tail 20; \
+			echo ""; \
+		done; \
+		echo "💡 Use 'make logs' to follow app logs or 'docker logs <container-name>' for specific container logs"; \
+		exit 1; \
+	else \
+		echo "✅ All services started successfully!"; \
+		echo ""; \
+		echo "🌐 Available endpoints:"; \
+		echo "  - API: http://localhost:8000"; \
+		echo "  - ChromaDB: http://localhost:8001"; \
+		echo ""; \
+		echo "📋 Use 'make logs' to follow application logs"; \
+	fi
 
 down: ## Stop the application services and remove containers
 	@echo "Stopping services..."
@@ -33,8 +121,45 @@ rebuild: ## Rebuild the application and restart
 logs: ## Follow the logs for the app service
 	@docker-compose logs -f app
 
+logs-all: ## Show logs from all services
+	@docker-compose logs --tail 50
+
+logs-failed: ## Show logs from failed containers
+	@echo "Checking for failed containers..."
+	@failed_containers=$$(docker-compose ps --filter "status=exited" --format "{{.Name}}" | grep -v "^$$"); \
+	if [ -n "$$failed_containers" ]; then \
+		echo "📋 Logs from failed containers:"; \
+		echo "==============================="; \
+		for container in $$failed_containers; do \
+			echo ""; \
+			echo "🔍 Logs for $$container:"; \
+			echo "------------------------"; \
+			docker logs $$container --tail 30; \
+			echo ""; \
+		done; \
+	else \
+		echo "✅ No failed containers found"; \
+	fi
+
 status: ## Show the status of the running services
+	@echo "Container Status:"
+	@echo "================"
 	@docker-compose ps
+	@echo ""
+	@echo "Failed containers (if any):"
+	@echo "==========================="
+	@failed_containers=$$(docker-compose ps --filter "status=exited" --format "{{.Name}}" | grep -v "^$$"); \
+	if [ -n "$$failed_containers" ]; then \
+		echo "❌ Failed containers found:"; \
+		for container in $$failed_containers; do \
+			echo "  - $$container"; \
+		done; \
+		echo ""; \
+		echo "💡 Use 'make logs' or 'docker logs <container-name>' to check logs"; \
+		echo "💡 Use 'make up' to restart all services"; \
+	else \
+		echo "✅ No failed containers"; \
+	fi
 
 
 # ==============================================================================
@@ -102,5 +227,17 @@ cron-test: ## Test the Nintendo monitor endpoint manually
 help: ## Show this help message
 	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Targets:"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) 
+	@echo "📧 Gmail Authentication:"
+	@awk 'BEGIN {FS = ":.*?## "} /^auth-[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "🐳 Docker Services:"
+	@awk 'BEGIN {FS = ":.*?## "} /^(up|down|restart|rebuild|logs|status):.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "📊 Logging & Debug:"
+	@awk 'BEGIN {FS = ":.*?## "} /^logs-[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "⏰ Cron Management:"
+	@awk 'BEGIN {FS = ":.*?## "} /^cron-[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "❓ Help:"
+	@awk 'BEGIN {FS = ":.*?## "} /^help:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) 
