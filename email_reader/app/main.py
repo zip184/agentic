@@ -116,10 +116,6 @@ class NotificationRequest(BaseModel):
 def root():
     return {"message": "Autonomous Agent API with ChromaDB Memory running"}
 
-@app.get("/testout")
-def test_out():
-    return {"output": "Test response 2"}
-
 @app.post("/run")
 def run_task(request: AgentRequest):
     """Run the basic agent without memory"""
@@ -488,6 +484,31 @@ def test_nintendo_monitor():
         asyncio.run(run_test())
         
         return {"message": "Nintendo monitor test completed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/nintendo/monitor/test-failure")
+def test_nintendo_monitor_failure():
+    """Test endpoint that intentionally throws an error to test failure notifications"""
+    if nintendo_monitor is None:
+        raise HTTPException(status_code=503, detail="Nintendo monitor not available")
+    
+    try:
+        import asyncio
+        
+        async def run_failure_test():
+            try:
+                # Intentionally cause an error to test failure notifications
+                raise Exception("This is a test failure to verify notification system")
+            except Exception as e:
+                # Send failure notification
+                await nintendo_monitor._send_failure_notification(str(e))
+                # Re-raise the exception so the endpoint returns an error
+                raise e
+        
+        asyncio.run(run_failure_test())
+        
+        return {"message": "This should never be reached"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

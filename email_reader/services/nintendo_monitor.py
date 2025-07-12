@@ -160,6 +160,8 @@ class NintendoSwitch2Monitor:
                 
         except Exception as e:
             logger.error(f"Error checking emails: {e}")
+            # Send failure notification using existing notification system
+            await self._send_failure_notification(str(e))
     
     async def _analyze_email_for_switch2(self, email: Dict[str, Any]):
         """Analyze an individual email for Switch 2 content"""
@@ -364,6 +366,31 @@ class NintendoSwitch2Monitor:
                 
         except Exception as e:
             logger.error(f"Error sending Pushover alert: {e}")
+    
+    async def _send_failure_notification(self, error_message: str):
+        """Send notification when monitoring fails"""
+        if not self.notification_service:
+            logger.warning("Notification service not available for failure alert")
+            return
+        
+        try:
+            title = "🚨 Nintendo Monitor Failed"
+            message = f"Nintendo Switch 2 monitoring encountered an error:\n\n{error_message}\n\nPlease check the service and logs."
+            
+            # Send via all available notification methods
+            result = self.notification_service.send_notification(
+                message=message,
+                title=title
+            )
+            
+            success_count = sum(1 for success in result.values() if success)
+            if success_count > 0:
+                logger.info(f"✅ Failure notification sent via {success_count} method(s)")
+            else:
+                logger.error("❌ Failed to send failure notification")
+                
+        except Exception as e:
+            logger.error(f"Error sending failure notification: {e}")
     
     def get_monitoring_stats(self) -> Dict[str, Any]:
         """Get statistics about the monitoring"""
