@@ -43,14 +43,32 @@ class GmailService:
         
         # Check if token file exists
         if os.path.exists(self.token_file):
-            with open(self.token_file, 'rb') as token:
-                creds = pickle.load(token)
+            try:
+                with open(self.token_file, 'rb') as token:
+                    creds = pickle.load(token)
+            except Exception as e:
+                print(f"Warning: Could not load token file {self.token_file}: {e}")
+                print("Removing invalid token file and re-authenticating...")
+                os.remove(self.token_file)
+                creds = None
         
         # If no valid credentials, let user log in
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                try:
+                    print("Attempting to refresh expired token...")
+                    creds.refresh(Request())
+                    print("✅ Token refreshed successfully!")
+                except Exception as e:
+                    print(f"⚠️  Token refresh failed: {e}")
+                    print("Removing invalid token file and re-authenticating...")
+                    # Remove the invalid token file
+                    if os.path.exists(self.token_file):
+                        os.remove(self.token_file)
+                    creds = None
+            
+            # If we still don't have valid credentials, start fresh authentication
+            if not creds or not creds.valid:
                 if not os.path.exists(self.credentials_file):
                     raise FileNotFoundError(
                         f"Gmail credentials file not found: {self.credentials_file}. "
@@ -62,6 +80,7 @@ class GmailService:
                 
                 try:
                     # Try to run local server (works on local machine)
+                    print("Starting fresh authentication flow...")
                     creds = flow.run_local_server(port=0)
                 except Exception as e:
                     print(f"Could not run local server: {e}")
@@ -70,7 +89,7 @@ class GmailService:
                     print("="*60)
                     print("Since we're running in Docker, you need to authenticate manually.")
                     print("\n1. Run this command on your HOST machine (not in Docker):")
-                    print("   python3 -c \"from services.gmail_service import authenticate_gmail; authenticate_gmail()\"")
+                    print("   python3 authenticate_gmail.py")
                     print("\n2. Or, authenticate locally and copy the token.pickle file to this directory")
                     print("="*60)
                     raise Exception("Manual authentication required. See instructions above.")
@@ -348,22 +367,39 @@ def authenticate_gmail(credentials_file: str = 'credentials.json', token_file: s
     
     # Check if token file exists
     if os.path.exists(token_file):
-        with open(token_file, 'rb') as token:
-            creds = pickle.load(token)
+        try:
+            with open(token_file, 'rb') as token:
+                creds = pickle.load(token)
+        except Exception as e:
+            print(f"⚠️  Warning: Could not load token file {token_file}: {e}")
+            print("Removing invalid token file and re-authenticating...")
+            os.remove(token_file)
+            creds = None
     
     # If no valid credentials, let user log in
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            print("Refreshing expired token...")
-            creds.refresh(Request())
-        else:
+            try:
+                print("🔄 Attempting to refresh expired token...")
+                creds.refresh(Request())
+                print("✅ Token refreshed successfully!")
+            except Exception as e:
+                print(f"⚠️  Token refresh failed: {e}")
+                print("Removing invalid token file and starting fresh authentication...")
+                # Remove the invalid token file
+                if os.path.exists(token_file):
+                    os.remove(token_file)
+                creds = None
+        
+        # If we still don't have valid credentials, start fresh authentication
+        if not creds or not creds.valid:
             if not os.path.exists(credentials_file):
                 raise FileNotFoundError(
                     f"Gmail credentials file not found: {credentials_file}. "
                     "Please download credentials from Google Cloud Console."
                 )
             
-            print("Opening browser for Gmail authentication...")
+            print("🔐 Opening browser for Gmail authentication...")
             flow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)
             creds = flow.run_local_server(port=0)
         
